@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime
 
 st.set_page_config(page_title="RSI Rebound Alert", layout="wide")
-st.title("📈 RSI Rebound Scanner (Price Crosses RSI 30 Upward)")
+st.title("📈 RSI Rebound Scanner (RSI < 30 and Price Crosses EMA50 Upward)")
 
 st.sidebar.header("Scan Settings")
 
@@ -43,39 +43,45 @@ def calculate_rsi(data, period=14):
     return rsi
 
 # Signal Detection
-def check_rsi_rebound(ticker):
+def check_rsi_ema50_cross(ticker):
     df = yf.download(ticker, interval="1d", period="60d", progress=False)
-    if df.empty or len(df) < lookback_days:
+    if df.empty or len(df) < 51:
         return None
 
     df['RSI'] = calculate_rsi(df)
+    df['EMA50'] = df['Close'].ewm(span=50, adjust=False).mean()
     df = df.dropna()
 
-    latest_close = float(df['Close'].dropna().values[-1])
-    latest_rsi = float(df['RSI'].dropna().values[-1])
+    latest_close = float(df['Close'].iloc[-1])
+    previous_close = float(df['Close'].iloc[-2])
+    latest_ema = float(df['EMA50'].iloc[-1])
+    previous_ema = float(df['EMA50'].iloc[-2])
+    latest_rsi = float(df['RSI'].iloc[-1])
 
-    # STRICT condition: current RSI is < 30 and price is now above RSI
-    if latest_rsi < 30 and latest_close > latest_rsi:
+    # Condition: RSI < 30 and price crosses EMA50 from below
+    crossed_above = previous_close < previous_ema and latest_close > latest_ema
+    if latest_rsi < 30 and crossed_above:
         return {
             "Ticker": ticker,
             "Date": df.index[-1].date(),
             "Price": round(latest_close, 2),
-            "RSI": round(latest_rsi, 2)
+            "RSI": round(latest_rsi, 2),
+            "EMA50": round(latest_ema, 2)
         }
     return None
 
-if st.button("🚀 Run RSI Rebound Scan"):
+if st.button("🚀 Run RSI + EMA50 Crossover Scan"):
     results = []
     for ticker in tickers:
-        signal = check_rsi_rebound(ticker)
+        signal = check_rsi_ema50_cross(ticker)
         if signal:
             results.append(signal)
 
     if results:
         df_out = pd.DataFrame(results)
-        st.success(f"✅ Found {len(df_out)} ticker(s) where RSI < 30 and price > RSI:")
+        st.success(f"✅ Found {len(df_out)} ticker(s) with RSI < 30 and price crossing above EMA50:")
         st.dataframe(df_out)
     else:
-        st.info("No RSI < 30 crossover signals found today.")
+        st.info("No RSI + EMA50 crossover signals found today.")
 
 st.caption("Last run: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
