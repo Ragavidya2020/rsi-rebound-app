@@ -34,8 +34,8 @@ def check_rsi_rebound(ticker):
     below_30 = recent[recent['RSI'] < 30]
 
     if not below_30.empty:
-        latest_close = df['Close'].iloc[-1]
-        latest_rsi = df['RSI'].iloc[-1]
+        latest_close = float(df['Close'].dropna().values[-1])
+        latest_rsi = float(df['RSI'].dropna().values[-1])
         if latest_close > latest_rsi:
             return {
                 "Ticker": ticker,
