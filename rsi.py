@@ -30,19 +30,17 @@ def check_rsi_rebound(ticker):
     df['RSI'] = calculate_rsi(df)
     df = df.dropna()
 
-    recent = df.iloc[-lookback_days:]
-    below_30 = recent[recent['RSI'] < 30]
+    latest_close = float(df['Close'].dropna().values[-1])
+    latest_rsi = float(df['RSI'].dropna().values[-1])
 
-    if not below_30.empty:
-        latest_close = float(df['Close'].dropna().values[-1])
-        latest_rsi = float(df['RSI'].dropna().values[-1])
-        if latest_close > latest_rsi:
-            return {
-                "Ticker": ticker,
-                "Date": df.index[-1].date(),
-                "Price": round(latest_close, 2),
-                "RSI": round(latest_rsi, 2)
-            }
+    # STRICT condition: current RSI is < 30 and price just crossed above RSI
+    if latest_rsi < 30 and latest_close > latest_rsi:
+        return {
+            "Ticker": ticker,
+            "Date": df.index[-1].date(),
+            "Price": round(latest_close, 2),
+            "RSI": round(latest_rsi, 2)
+        }
     return None
 
 if st.button("🚀 Run RSI Rebound Scan"):
@@ -54,9 +52,9 @@ if st.button("🚀 Run RSI Rebound Scan"):
 
     if results:
         df_out = pd.DataFrame(results)
-        st.success(f"✅ Found {len(df_out)} ticker(s) where price > RSI after RSI < 30:")
+        st.success(f"✅ Found {len(df_out)} ticker(s) where RSI < 30 and price > RSI:")
         st.dataframe(df_out)
     else:
-        st.info("No RSI rebound signals found today.")
+        st.info("No RSI < 30 crossover signals found today.")
 
 st.caption("Last run: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
