@@ -1,16 +1,18 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+from datetime import datetime
 
-st.title("Simple RSI < 30 Rebound Scanner")
+st.set_page_config(page_title="RSI Rebound Alert", layout="wide")
+st.title("📈 RSI Rebound Scanner (Price Crosses RSI 30 Upward)")
 
-tickers = [
-    "AAPL", "TSLA", "MSFT", "NVDA", "AMD"
-]
+st.sidebar.header("Scan Settings")
+tickers = st.sidebar.text_area("Enter tickers (comma separated):", "AAPL,MSFT,TSLA,NVDA,GOOGL").split(',')
+tickers = [t.strip().upper() for t in tickers if t.strip()]
 
-interval = st.selectbox("Select interval", ["1d", "5m", "1m"], index=0)
-period = "180d" if interval == "1d" else "30d"
+lookback_days = st.sidebar.number_input("Days to look back for RSI < 30", min_value=5, max_value=30, value=14)
 
+# RSI Function
 def calculate_rsi(data, period=14):
     delta = data['Close'].diff()
     gain = delta.where(delta > 0, 0).rolling(window=period).mean()
@@ -19,29 +21,41 @@ def calculate_rsi(data, period=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-results = []
-
-for ticker in tickers:
-    df = yf.download(ticker, interval=interval, period=period, progress=False)
-    if df.empty:
-        continue
+# Signal Detection
+def check_rsi_rebound(ticker):
+    df = yf.download(ticker, interval="1d", period="60d", progress=False)
+    if df.empty or len(df) < lookback_days:
+        return None
 
     df['RSI'] = calculate_rsi(df)
     df = df.dropna()
 
-    # Check if RSI ever went below 30 and now is above previous RSI (rebound)
-    if any(df['RSI'] < 30):
-        last = df.iloc[-1]
-        prev = df.iloc[-2]
-        if last['RSI'] > prev['RSI']:
-            results.append({
-                "Ticker": ticker,
-                "Price": round(last['Close'], 2),
-                "RSI": round(last['RSI'], 2)
-            })
+    recent = df.iloc[-lookback_days:]
+    below_30 = recent[recent['RSI'] < 30]
 
-st.write("Tickers with RSI < 30 and RSI rising now:")
-if results:
-    st.dataframe(pd.DataFrame(results))
-else:
-    st.write("No tickers found with RSI < 30 rebound.")
+    if not below_30.empty:
+        latest = df.iloc[-1]
+        if latest['Close'] > latest['RSI']:
+            return {
+                "Ticker": ticker,
+                "Date": latest.name.date(),
+                "Price": round(latest['Close'], 2),
+                "RSI": round(latest['RSI'], 2)
+            }
+    return None
+
+if st.button("🚀 Run RSI Rebound Scan"):
+    results = []
+    for ticker in tickers:
+        signal = check_rsi_rebound(ticker)
+        if signal:
+            results.append(signal)
+
+    if results:
+        df_out = pd.DataFrame(results)
+        st.success(f"✅ Found {len(df_out)} ticker(s) where price > RSI after RSI < 30:")
+        st.dataframe(df_out)
+    else:
+        st.info("No RSI rebound signals found today.")
+
+st.caption("Last run: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
