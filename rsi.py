@@ -3,12 +3,12 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime
 
-st.set_page_config(page_title="RSI Rebound Alert", layout="wide")
-st.title("📈 RSI Rebound Scanner (RSI < 30 and Price Crosses EMA50 Upward)")
+st.set_page_config(page_title="RSI + EMA50 Crossover Scanner", layout="wide")
+st.title("📈 RSI < 30 & Price Crossing EMA50 Scanner with Interval Options")
 
 st.sidebar.header("Scan Settings")
 
-# Sample 100 tickers (20 each from 5 large sectors with market cap > $900M)
+# 100+ tickers from 5 large sectors (Tech, Healthcare, Financials, Industrials, Consumer Disc)
 tickers = [
     # Technology
     "AAPL", "MSFT", "NVDA", "AVGO", "ADBE", "CRM", "INTC", "AMD", "QCOM", "CSCO",
@@ -29,11 +29,29 @@ tickers = [
 
 tickers_input = st.sidebar.text_area("Tickers (comma separated, optional):", "")
 if tickers_input.strip():
-    tickers = [t.strip().upper() for t in tickers_input.split(',') if t.strip()]
+    tickers = [t.strip().upper() for t in tickers_input.split(",") if t.strip()]
 
-lookback_days = st.sidebar.number_input("Days to look back for RSI < 30", min_value=5, max_value=30, value=14)
+interval = st.sidebar.selectbox(
+    "Select Interval for RSI & EMA calculation",
+    options=["1m", "5m", "30m", "60m", "120m", "1d", "4h"],
+    index=5,  # Default to 1d
+)
 
-# RSI Function
+# yfinance interval map
+interval_map = {
+    "1m": "1m",
+    "5m": "5m",
+    "30m": "30m",
+    "60m": "60m",
+    "120m": "120m",
+    "1d": "1d",
+    "4h": "240m",
+}
+yf_interval = interval_map.get(interval, "1d")
+
+period = "60d" if yf_interval.endswith("m") else "180d"
+lookback_bars_needed = 60
+
 def calculate_rsi(data, period=14):
     delta = data['Close'].diff()
     gain = delta.where(delta > 0, 0).rolling(window=period).mean()
@@ -42,10 +60,9 @@ def calculate_rsi(data, period=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-# Signal Detection
 def check_rsi_ema50_cross(ticker):
-    df = yf.download(ticker, interval="1d", period="60d", progress=False)
-    if df.empty or len(df) < 51:
+    df = yf.download(ticker, interval=yf_interval, period=period, progress=False)
+    if df.empty or len(df) < lookback_bars_needed:
         return None
 
     df['RSI'] = calculate_rsi(df)
@@ -58,15 +75,15 @@ def check_rsi_ema50_cross(ticker):
     previous_ema = float(df['EMA50'].iloc[-2])
     latest_rsi = float(df['RSI'].iloc[-1])
 
-    # Condition: RSI < 30 and price crosses EMA50 from below
     crossed_above = previous_close < previous_ema and latest_close > latest_ema
     if latest_rsi < 30 and crossed_above:
         return {
             "Ticker": ticker,
-            "Date": df.index[-1].date(),
+            "Date": df.index[-1],
             "Price": round(latest_close, 2),
             "RSI": round(latest_rsi, 2),
-            "EMA50": round(latest_ema, 2)
+            "EMA50": round(latest_ema, 2),
+            "Interval": interval,
         }
     return None
 
@@ -82,6 +99,6 @@ if st.button("🚀 Run RSI + EMA50 Crossover Scan"):
         st.success(f"✅ Found {len(df_out)} ticker(s) with RSI < 30 and price crossing above EMA50:")
         st.dataframe(df_out)
     else:
-        st.info("No RSI + EMA50 crossover signals found today.")
+        st.info("No RSI + EMA50 crossover signals found at this interval.")
 
 st.caption("Last run: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
