@@ -3,11 +3,12 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime
 
-st.set_page_config(page_title="RSI Crossing EMA50 Scanner", layout="wide")
-st.title("📈 RSI < 30 & RSI Crossing EMA50 (from below) Scanner")
+st.set_page_config(page_title="RSI Rebound + EMA50 Crossover Scanner", layout="wide")
+st.title("📈 RSI Rebound (RSI < 30 then crosses EMA50) Scanner")
 
 st.sidebar.header("Scan Settings")
 
+# Default large ticker list (Tech, Healthcare, Financials, Industrials, Consumer Disc)
 tickers = [
     # Technology
     "AAPL", "MSFT", "NVDA", "AVGO", "ADBE", "CRM", "INTC", "AMD", "QCOM", "CSCO",
@@ -58,7 +59,7 @@ def calculate_rsi(data, period=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-def check_rsi_cross_ema50(ticker):
+def check_rsi_rebound_cross(ticker):
     df = yf.download(ticker, interval=yf_interval, period=period, progress=False)
     if df.empty or len(df) < lookback_bars_needed:
         return None
@@ -67,12 +68,22 @@ def check_rsi_cross_ema50(ticker):
     df['RSI_EMA50'] = df['RSI'].ewm(span=50, adjust=False).mean()
     df = df.dropna()
 
-    latest_rsi = float(df['RSI'].iloc[-1])
-    previous_rsi = float(df['RSI'].iloc[-2])
-    latest_ema = float(df['RSI_EMA50'].iloc[-1])
-    previous_ema = float(df['RSI_EMA50'].iloc[-2])
+    # Need at least 3 bars to check condition
+    if len(df) < 3:
+        return None
 
-    crossed_above = (previous_rsi < previous_ema) and (latest_rsi > latest_ema) and (latest_rsi < 30)
+    rsi_3ago = df['RSI'].iloc[-3]
+    rsi_2ago = df['RSI'].iloc[-2]
+    rsi_1ago = df['RSI'].iloc[-1]
+
+    ema_3ago = df['RSI_EMA50'].iloc[-3]
+    ema_2ago = df['RSI_EMA50'].iloc[-2]
+    ema_1ago = df['RSI_EMA50'].iloc[-1]
+
+    # Condition: RSI was <30 three bars ago,
+    # RSI was below EMA50 2 bars ago,
+    # RSI crosses EMA50 from below on last bar
+    crossed_above = (rsi_3ago < 30) and (rsi_2ago < ema_2ago) and (rsi_1ago > ema_1ago)
 
     if crossed_above:
         latest_close = float(df['Close'].iloc[-1])
@@ -80,24 +91,24 @@ def check_rsi_cross_ema50(ticker):
             "Ticker": ticker,
             "Date": df.index[-1].strftime("%Y-%m-%d %H:%M:%S"),
             "Price": round(latest_close, 2),
-            "RSI": round(latest_rsi, 2),
-            "RSI_EMA50": round(latest_ema, 2),
+            "RSI": round(rsi_1ago, 2),
+            "RSI_EMA50": round(ema_1ago, 2),
             "Interval": interval,
         }
     return None
 
-if st.button("🚀 Run RSI < 30 & RSI crossing EMA50 scan"):
+if st.button("🚀 Run RSI Rebound + EMA50 Crossover Scan"):
     results = []
     for ticker in tickers:
-        signal = check_rsi_cross_ema50(ticker)
+        signal = check_rsi_rebound_cross(ticker)
         if signal:
             results.append(signal)
 
     if results:
         df_out = pd.DataFrame(results)
-        st.success(f"✅ Found {len(df_out)} ticker(s) matching condition:")
+        st.success(f"✅ Found {len(df_out)} ticker(s) matching RSI rebound + EMA50 crossover:")
         st.dataframe(df_out)
     else:
-        st.info("No tickers found with RSI < 30 crossing above EMA50 right now.")
+        st.info("No tickers found with RSI rebound crossing EMA50 at this time.")
 
 st.caption("Last run: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
