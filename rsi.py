@@ -33,10 +33,11 @@ def calculate_rsi(data, period=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-# Signal detection logic
+# Signal detection logic with debug output
 def check_rsi_ema_rebound(ticker):
     df = yf.download(ticker, interval=interval, period=period, progress=False)
     if df.empty or len(df) < lookback_bars + 2:
+        st.write(f"🔴 {ticker}: Not enough data ({len(df)} bars)")
         return None
 
     df['RSI'] = calculate_rsi(df)
@@ -46,11 +47,14 @@ def check_rsi_ema_rebound(ticker):
     recent = df.iloc[-lookback_bars:]
     below_30 = recent[recent['RSI'] < 30]
 
+    # Show last 3 RSI + EMA values for debugging
+    rsi_vals = df['RSI'].iloc[-3:].values
+    ema_vals = df['RSI_EMA50'].iloc[-3:].values
+    st.write(f"{ticker} — RSI: {rsi_vals}, EMA50: {ema_vals}")
+
     if not below_30.empty:
-        rsi_prev = df['RSI'].iloc[-2]
-        rsi_now = df['RSI'].iloc[-1]
-        ema_prev = df['RSI_EMA50'].iloc[-2]
-        ema_now = df['RSI_EMA50'].iloc[-1]
+        rsi_prev, rsi_now = rsi_vals[-2], rsi_vals[-1]
+        ema_prev, ema_now = ema_vals[-2], ema_vals[-1]
 
         if rsi_prev < ema_prev and rsi_now > ema_now:
             latest = df.iloc[-1]
