@@ -5,7 +5,7 @@ import pandas as pd
 st.title("RSI < 30 Rebound & EMA50 Crossover Scanner")
 
 tickers = [
-    "AAPL", "TSLA", "MSFT", "NVDA", "AMD"
+    "AAPL", "TSLA", "MSFT", "NVDA", "AMD", SRPT
 ]
 
 interval = st.selectbox("Select interval", options=["1d", "30m", "5m"], index=0)
