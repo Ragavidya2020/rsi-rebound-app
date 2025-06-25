@@ -2,7 +2,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 
-st.title("RSI < 30 Rebound & EMA50 Crossover Scanner")
+st.title("RSI < 30 Rebound Scanner")
 
 tickers = [
     "AAPL", "TSLA", "MSFT", "NVDA", "AMD", "SRPT"
@@ -19,31 +19,26 @@ def calculate_rsi(data, period=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-def check_rsi_rebound_cross(df):
+def check_rsi_rebound(df):
     df['RSI'] = calculate_rsi(df)
-    df['RSI_EMA50'] = df['RSI'].ewm(span=50, adjust=False).mean()
     df = df.dropna()
     if len(df) < 3:
         return False
 
-    # Conditions:
+    # Look at last 3 RSI values
     rsi_3ago = df['RSI'].iloc[-3]
     rsi_2ago = df['RSI'].iloc[-2]
     rsi_1ago = df['RSI'].iloc[-1]
 
-    ema_2ago = df['RSI_EMA50'].iloc[-2]
-    ema_1ago = df['RSI_EMA50'].iloc[-1]
-
-    # Was RSI below 30 three bars ago?
+    # Condition: RSI was below 30, and now rising (rsi_3ago <30 and rsi_1ago > rsi_2ago)
     was_oversold = rsi_3ago < 30
-    # RSI was below EMA50 2 bars ago and crossed above EMA50 on last bar
-    crossed_above = (rsi_2ago < ema_2ago) and (rsi_1ago > ema_1ago)
+    is_rising = rsi_1ago > rsi_2ago
 
-    return was_oversold and crossed_above
-
-st.write(f"Fetching {interval} data for tickers and scanning...")
+    return was_oversold and is_rising
 
 results = []
+
+st.write(f"Scanning {interval} data for RSI rebound...")
 
 for ticker in tickers:
     df = yf.download(ticker, interval=interval, period=period, progress=False)
@@ -51,19 +46,17 @@ for ticker in tickers:
         st.write(f"{ticker}: No data or too little data")
         continue
 
-    if check_rsi_rebound_cross(df):
+    if check_rsi_rebound(df):
         latest_close = df['Close'].iloc[-1]
         latest_rsi = df['RSI'].iloc[-1]
-        latest_ema = df['RSI_EMA50'].iloc[-1]
         results.append({
             "Ticker": ticker,
             "Price": round(latest_close, 2),
             "RSI": round(latest_rsi, 2),
-            "RSI_EMA50": round(latest_ema, 2),
         })
 
 if results:
-    st.success(f"Tickers with RSI <30 rebound crossing EMA50:")
+    st.success(f"Tickers with RSI < 30 and starting to rebound:")
     st.dataframe(pd.DataFrame(results))
 else:
-    st.info("No tickers found matching the RSI rebound + EMA50 crossover condition at this time.")
+    st.info("No tickers found currently with RSI < 30 rebound.")
