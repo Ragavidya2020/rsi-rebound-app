@@ -3,72 +3,72 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime
 
-st.set_page_config(page_title="RSI Rebound Scanner", layout="wide")
-st.title("📈 RSI Rebound Scanner (RSI < 30 Anytime in Last 30 Bars & Rising)")
+st.set_page_config(page_title="RSI Intraday Rebound Scanner", layout="wide")
+st.title("📈 RSI Rebound (RSI < 30 Anytime Today AND Now Rising)")
 
-# Sidebar options
+# Sidebar Inputs
 st.sidebar.header("Settings")
 tickers = st.sidebar.text_area("Enter tickers (comma separated):", "AAPL,MSFT,TSLA,NVDA,GOOGL,SRPT").split(',')
 tickers = [t.strip().upper() for t in tickers if t.strip()]
+interval = st.sidebar.selectbox("Interval", ["1m", "5m", "30m"], index=1)
 
-interval = st.sidebar.selectbox("Interval", ["1d", "30m", "5m", "1m"], index=0)
-
-# How much data to fetch based on interval
+# Set period based on interval
 period_map = {
-    "1d": "90d",
-    "30m": "30d",
-    "5m": "7d",
-    "1m": "2d"
+    "1m": "1d",
+    "5m": "5d",
+    "30m": "15d"
 }
 period = period_map[interval]
-
-lookback_bars = 30  # Fixed range of 30 bars to check for RSI < 30
 
 # RSI Calculation
 def calculate_rsi(data, period=14):
     delta = data['Close'].diff()
-    gain = delta.where(delta > 0, 0).rolling(window=period).mean()
-    loss = -delta.where(delta < 0, 0).rolling(window=period).mean()
+    gain = delta.where(delta > 0, 0).rolling(period).mean()
+    loss = -delta.where(delta < 0, 0).rolling(period).mean()
     rs = gain / loss
-    rsi = 100 - (100 / (1 + rs))
-    return rsi
+    return 100 - (100 / (1 + rs))
 
-# Check for RSI < 30 at any point in last 30 bars, then rising
+# Rebound Signal Logic
 def check_rsi_rebound(ticker):
     df = yf.download(ticker, interval=interval, period=period, progress=False)
-    if df.empty or len(df) < lookback_bars + 2:
-        st.write(f"🔴 {ticker}: Not enough data")
+    if df.empty or len(df) < 15:
         return None
 
     df['RSI'] = calculate_rsi(df)
     df = df.dropna()
 
-    rsi_series = df['RSI']
-    recent_rsi = rsi_series.iloc[-lookback_bars:]  # last 30 bars
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_df = df[df.index.strftime("%Y-%m-%d") == today_str]
 
-    # Check if RSI < 30 anytime in last 30 bars and is rising now
-    if (recent_rsi < 30).any() and rsi_series.iloc[-2] < rsi_series.iloc[-1]:
-        latest = df.iloc[-1]
+    if today_df.empty or len(today_df) < 3:
+        return None
+
+    rsi_values = today_df['RSI']
+
+    if (rsi_values < 30).any() and rsi_values.iloc[-1] > rsi_values.iloc[-2]:
+        latest = today_df.iloc[-1]
         return {
             "Ticker": ticker,
             "Time": latest.name.strftime("%Y-%m-%d %H:%M"),
             "Price": round(latest['Close'], 2),
-            "RSI": round(rsi_series.iloc[-1], 2)
+            "RSI": round(latest['RSI'], 2)
         }
+
     return None
 
-if st.button("🚀 Run Scanner"):
-    results = []
+# Scanner Execution
+if st.button("🚀 Run RSI Scanner"):
+    signals = []
     for ticker in tickers:
-        signal = check_rsi_rebound(ticker)
-        if signal:
-            results.append(signal)
+        result = check_rsi_rebound(ticker)
+        if result:
+            signals.append(result)
 
-    if results:
-        df_out = pd.DataFrame(results)
-        st.success(f"✅ Found {len(df_out)} RSI rebound(s):")
-        st.dataframe(df_out)
+    if signals:
+        df_signals = pd.DataFrame(signals)
+        st.success(f"✅ Found {len(df_signals)} RSI rebound(s):")
+        st.dataframe(df_signals)
     else:
-        st.info("No RSI rebound signals found.")
+        st.info("No RSI rebound signals found today.")
 
 st.caption("Last run: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
