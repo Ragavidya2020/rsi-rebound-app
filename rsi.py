@@ -54,7 +54,7 @@ def check_rsi_rebound(ticker):
     latest_close = float(df['Close'].dropna().values[-1])
     latest_rsi = float(df['RSI'].dropna().values[-1])
 
-    # STRICT condition: current RSI is < 30 and price just crossed above RSI
+    # STRICT condition: current RSI is < 30 and price is now above RSI
     if latest_rsi < 30 and latest_close > latest_rsi:
         return {
             "Ticker": ticker,
