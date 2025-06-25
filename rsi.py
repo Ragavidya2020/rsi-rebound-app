@@ -7,8 +7,29 @@ st.set_page_config(page_title="RSI Rebound Alert", layout="wide")
 st.title("📈 RSI Rebound Scanner (Price Crosses RSI 30 Upward)")
 
 st.sidebar.header("Scan Settings")
-tickers = st.sidebar.text_area("Enter tickers (comma separated):", "AAPL,MSFT,TSLA,NVDA,GOOGL").split(',')
-tickers = [t.strip().upper() for t in tickers if t.strip()]
+
+# Sample 100 tickers (20 each from 5 large sectors with market cap > $900M)
+tickers = [
+    # Technology
+    "AAPL", "MSFT", "NVDA", "AVGO", "ADBE", "CRM", "INTC", "AMD", "QCOM", "CSCO",
+    "ORCL", "TXN", "MU", "AMAT", "NOW", "PANW", "IBM", "KLAC", "SNPS", "WDAY",
+    # Healthcare
+    "JNJ", "PFE", "ABBV", "MRK", "LLY", "TMO", "ABT", "AMGN", "CVS", "ISRG",
+    "CI", "HCA", "GILD", "VRTX", "BMY", "BDX", "ZBH", "EW", "REGN", "ALGN",
+    # Financials
+    "JPM", "BAC", "WFC", "C", "GS", "MS", "AXP", "SCHW", "SPGI", "BLK",
+    "AIG", "CB", "ICE", "MMC", "COF", "MTB", "TFC", "ALL", "PGR", "FITB",
+    # Industrials
+    "HON", "GE", "UPS", "CAT", "DE", "LMT", "RTX", "BA", "ETN", "NOC",
+    "EMR", "UNP", "GD", "PH", "ROK", "IR", "AME", "FAST", "PCAR", "TXT",
+    # Consumer Discretionary
+    "TSLA", "HD", "MCD", "NKE", "SBUX", "LOW", "BKNG", "TGT", "ROST", "F",
+    "GM", "EBAY", "MAR", "YUM", "DPZ", "AZO", "ORLY", "ULTA", "DHI", "LEN"
+]
+
+tickers_input = st.sidebar.text_area("Tickers (comma separated, optional):", "")
+if tickers_input.strip():
+    tickers = [t.strip().upper() for t in tickers_input.split(',') if t.strip()]
 
 lookback_days = st.sidebar.number_input("Days to look back for RSI < 30", min_value=5, max_value=30, value=14)
 
