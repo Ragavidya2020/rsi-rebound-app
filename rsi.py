@@ -32,9 +32,10 @@ def check_support_bounce(ticker):
     if df.empty or len(df) < 50:
         return None
     df = df.dropna()
+    df["Support"] = df["Close"].rolling(window=50).min()
     price = df["Close"].iloc[-1]
-    support = df["Close"].rolling(window=50).min().iloc[-1]
-    if price <= support * 1.01:  # within 1% of 50-day low
+    support = df["Support"].iloc[-1]
+    if pd.notna(support) and price <= support * 1.01:  # within 1% of support
         return {
             "Ticker": ticker,
             "Time": df.index[-1].strftime("%Y-%m-%d %H:%M"),
