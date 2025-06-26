@@ -33,15 +33,18 @@ def check_support_bounce(ticker):
         return None
     df = df.dropna()
     df["Support"] = df["Close"].rolling(window=50).min()
-    price = df["Close"].iloc[-1]
-    support = df["Support"].iloc[-1]
-    if pd.notna(support) and price <= support * 1.01:  # within 1% of support
+    
+    price = df["Close"].iloc[-1]       # Ensure it's a single float
+    support = df["Support"].iloc[-1]   # Also a single float
+
+    # Final scalar check
+    if pd.notna(support) and pd.notna(price) and float(price) <= float(support) * 1.01:
         return {
             "Ticker": ticker,
             "Time": df.index[-1].strftime("%Y-%m-%d %H:%M"),
-            "Price": round(price, 2),
-            "Support": round(support, 2),
-            "Distance %": round((price / support - 1) * 100, 2)
+            "Price": round(float(price), 2),
+            "Support": round(float(support), 2),
+            "Distance %": round((float(price) / float(support) - 1) * 100, 2)
         }
     return None
 
