@@ -4,79 +4,59 @@ import pandas as pd
 from datetime import datetime
 
 st.set_page_config(page_title="Support Bounce Scanner", layout="wide")
-st.title("📉 Support Bounce Scanner (Based on 50-period low)")
+st.title("📉 Support Bounce Scanner (Confirmed Rebounds from Strong Support)")
 
-# --- Ticker groups by price category ---
-price_below_50 = [
-    "WBD", "CHPT", "CANO", "F", "PBR", "T", "VZ", "BAC", "SOFI", "PLUG", "OPEN", "SIRI", "MRO", "BB",
-    "BBD", "PENN", "SABR", "MFA", "NOK", "GGB", "VALE", "INTC", "CLF", "MGM", "PFE", "BMY", "GM", "APA",
-    "X", "AR", "RIG", "NCLH", "CCL", "UAL", "DAL", "LYV", "HST", "WOLF", "RIVN", "LUMN", "FCX", "WBA",
-    "KGC", "TFC", "HBAN", "ALLY", "RF", "KEY", "C", "ET", "XOM"
+# --- Strictly large-cap tickers (>$5B market cap) ---
+large_cap_tickers = [
+    "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA", "V", "MA", "JPM",
+    "DIS", "HD", "PG", "PFE", "PEP", "KO", "XOM", "CVX", "WMT", "MRK",
+    "LLY", "ABBV", "UNH", "JNJ", "COST", "TMO", "ABT", "AMD", "NFLX", "CRM",
+    "INTC", "QCOM", "TXN", "AVGO", "ORCL", "NOW", "ADBE", "AMAT", "LRCX", "IBM",
+    "GE", "CAT", "DE", "UPS", "BA", "LMT", "RTX", "GS", "MS", "BKNG",
+    "MO", "PM", "MDT", "SYK", "BDX", "ZTS", "CVS", "CI", "TGT", "LOW",
+    "SPGI", "ICE", "PLD", "CB", "BLK", "AXP", "ETN", "NOC", "GD", "HUM",
+    "ISRG", "ADP", "FISV", "FIS", "CSX", "NSC", "FDX", "DAL", "LULU", "ROST",
+    "EL", "CMCSA", "CHTR", "TMUS", "T", "VZ", "DUK", "NEE", "SO", "D",
+    "ECL", "CL", "KMB", "GIS", "SBUX", "PYPL", "ABNB", "MAR", "HLT", "EBAY"
 ]
 
-price_below_100 = [
-    "DIS", "SBUX", "CVS", "PYPL", "ABNB", "CRM", "SNAP", "GILD", "MRNA", "UBER", "LYFT", "DKNG", "LULU",
-    "ROKU", "BIIB", "ATVI", "WDC", "MU", "AMD", "AAL", "WMT", "KO", "PEP", "CSCO", "VLO", "OXY", "PXD",
-    "EOG", "ZIM", "SQ", "NET", "DDOG", "DOCU", "BIDU", "SHOP", "TGT", "LOW", "HD", "MDT", "GE", "MMM",
-    "DE", "NUE", "CAT", "BA", "LMT", "GD", "TSM", "NXPI"
-]
+# --- Sidebar ---
+interval = st.sidebar.selectbox("Interval", ["1d", "30m", "5m"], index=0)
+period = {"1d": "90d", "30m": "15d", "5m": "7d"}[interval]
 
-price_above_100 = [
-    "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA", "V", "MA", "AVGO", "COST", "NFLX", "REGN",
-    "EL", "ORLY", "ADBE", "ISRG", "NOW", "BKNG", "ANET", "ADI", "VRTX", "FICO", "ASML", "CDNS", "CRWD",
-    "PANW", "MELI", "QCOM", "TXN", "CMG", "LRCX", "ZS", "CHTR", "IDXX", "MSCI", "TMO", "EQIX", "SPOT",
-    "ROST", "ALGN", "SNPS", "INTU", "AZO", "BLK", "HUM", "MOH", "CI", "PGR"
-]
+st.sidebar.write(f"🔍 Scanning {len(large_cap_tickers)} tickers...")
 
-ticker_groups = {
-    "Below $50": price_below_50,
-    "Below $100": price_below_100,
-    "Above $100": price_above_100,
-    "All Combined": list(set(price_below_50 + price_below_100 + price_above_100))
-}
-
-# --- Sidebar controls ---
-interval = st.sidebar.selectbox("Chart Interval", ["1d", "30m", "5m"], index=0)
-period = "90d" if interval == "1d" else ("15d" if interval == "30m" else "7d")
-group_choice = st.sidebar.selectbox("Select Ticker Group", list(ticker_groups.keys()), index=3)
-
-tickers = ticker_groups[group_choice]
-st.sidebar.write(f"🔍 Scanning {len(tickers)} stocks from group: **{group_choice}**")
-
-# --- Main scan logic ---
+# --- Support check logic ---
 def check_support_bounce(ticker):
     df = yf.download(ticker, interval=interval, period=period, progress=False)
     if df.empty or len(df) < 50:
         return None
-
     df = df.dropna()
-    close_prices = df["Close"]
-    latest_price = close_prices.iloc[-1]
-    support_level = close_prices.rolling(50).min().iloc[-1]
-
-    if float(latest_price) <= float(support_level) * 1.01:
+    price = df["Close"].iloc[-1]
+    support = df["Close"].rolling(window=50).min().iloc[-1]
+    if price <= support * 1.01:  # within 1% of 50-day low
         return {
             "Ticker": ticker,
             "Time": df.index[-1].strftime("%Y-%m-%d %H:%M"),
-            "Price": round(float(latest_price), 2),
-            "Support": round(float(support_level), 2),
-            "Dist %": round((float(latest_price)/float(support_level) - 1) * 100, 2)
+            "Price": round(price, 2),
+            "Support": round(support, 2),
+            "Distance %": round((price / support - 1) * 100, 2)
         }
     return None
 
 # --- Run scan ---
-if st.button("🚀 Run Scan"):
+if st.button("🚀 Scan for Support Bounces"):
     results = []
-    for t in tickers:
-        signal = check_support_bounce(t)
-        if signal:
-            results.append(signal)
+    for t in large_cap_tickers:
+        hit = check_support_bounce(t)
+        if hit:
+            results.append(hit)
 
     if results:
-        df_out = pd.DataFrame(results).sort_values("Dist %")
-        st.success(f"✅ Found {len(df_out)} stock(s) near 50-period support:")
-        st.dataframe(df_out)
+        df_result = pd.DataFrame(results).sort_values("Distance %")
+        st.success(f"✅ Found {len(df_result)} ticker(s) bouncing near support:")
+        st.dataframe(df_result)
     else:
-        st.info("No strong support signals found right now.")
+        st.info("No bounces from strong support detected at the moment.")
 
-st.caption("Last updated: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+st.caption("Last run: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
